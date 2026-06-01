@@ -1,0 +1,937 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Texas Hold'em Equity Simulator</title>
+    <style>
+        :root {
+            --felt-green: #1a3c28;
+            --felt-green-dark: #0f2518;
+            --card-bg: #f4f4f4;
+            --card-border: #ccc;
+            --highlight-color: #f1c40f;
+            --accent-blue: #3498db;
+            --text-light: #ecf0f1;
+            --red-suit: #e74c3c;
+            --black-suit: #2c3e50;
+        }
+
+        * {
+            box-sizing: border-box;
+            user-select: none;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 0;
+            background: radial-gradient(circle at center, var(--felt-green), var(--felt-green-dark));
+            min-height: 100vh;
+            color: var(--text-light);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        /* Header & Controls */
+        header {
+            text-align: center;
+            padding: 20px;
+            width: 100%;
+            max-width: 1000px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+
+        h1 {
+            margin: 0;
+            font-weight: 300;
+            letter-spacing: 1px;
+        }
+
+        .control-panel {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+        }
+
+        select, button {
+            padding: 10px 20px;
+            border-radius: 6px;
+            border: none;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        button {
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+
+        button.primary {
+            background: var(--accent-blue);
+            color: white;
+            box-shadow: 0 4px 0 #2980b9;
+        }
+
+        button.primary:active {
+            transform: translateY(2px);
+            box-shadow: 0 2px 0 #2980b9;
+        }
+
+        button.primary:disabled {
+            background: #7f8c8d;
+            box-shadow: none;
+            cursor: not-allowed;
+            opacity: 0.6;
+        }
+
+        button.secondary {
+            background: rgba(255,255,255,0.1);
+            color: white;
+        }
+        
+        button.secondary:hover {
+            background: rgba(255,255,255,0.2);
+        }
+
+        /* Game Area */
+        .game-board {
+            width: 100%;
+            max-width: 1000px;
+            padding: 20px;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 30px;
+        }
+
+        .slots-container {
+            display: flex;
+            justify-content: center;
+            gap: 40px;
+            margin-bottom: 10px;
+        }
+
+        .slot-group {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .slot-label {
+            font-size: 0.9rem;
+            opacity: 0.8;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+        }
+
+        .cards-row {
+            display: flex;
+            gap: 10px;
+            min-height: 96px; /* Height of card */
+        }
+
+        /* Card Styles */
+        .card-slot {
+            width: 64px;
+            height: 96px;
+            border: 2px dashed rgba(255,255,255,0.3);
+            border-radius: 6px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            position: relative;
+        }
+
+        .card {
+            width: 64px;
+            height: 96px;
+            background: var(--card-bg);
+            border-radius: 6px;
+            position: relative;
+            box-shadow: 0 3px 6px rgba(0,0,0,0.3);
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s, opacity 0.3s;
+            display: flex;
+            flex-direction: column;
+            padding: 5px;
+            font-weight: bold;
+            font-size: 18px;
+            overflow: hidden;
+        }
+
+        .card.large {
+            width: 70px;
+            height: 105px;
+        }
+
+        .card:hover {
+            transform: translateY(-8px);
+            box-shadow: 0 8px 12px rgba(0,0,0,0.4);
+            z-index: 10;
+        }
+
+        .card.suit-h, .card.suit-d { color: var(--red-suit); }
+        .card.suit-c, .card.suit-s { color: var(--black-suit); }
+
+        .rank { position: absolute; top: 4px; left: 6px; }
+        .suit-main { 
+            position: absolute; 
+            top: 50%; 
+            left: 50%; 
+            transform: translate(-50%, -50%); 
+            font-size: 32px; 
+        }
+        .rank-bot { position: absolute; bottom: 4px; right: 6px; transform: rotate(180deg); }
+
+        /* Interaction Styles */
+        .card.selected {
+            border: 3px solid var(--highlight-color);
+            box-shadow: 0 0 15px var(--highlight-color);
+        }
+        
+        /* Used in the display slots */
+        .card-slot .card {
+            cursor: pointer; /* Can be clicked to remove */
+        }
+
+        /* Selection Area */
+        .deck-area {
+            background: rgba(0,0,0,0.2);
+            padding: 20px;
+            border-radius: 12px;
+        }
+        
+        .deck-grid {
+            display: grid;
+            grid-template-columns: repeat(13, 1fr);
+            gap: 8px;
+        }
+
+        /* Animation Classes */
+        .animating-flip {
+            animation: flipScale 0.6s ease forwards;
+            z-index: 100;
+        }
+
+        @keyframes flipScale {
+            0% { transform: scale(1) rotateY(0); }
+            50% { transform: scale(1.4) rotateY(180deg); }
+            100% { transform: scale(1) rotateY(360deg); }
+        }
+
+        /* Dim other cards when one is animating */
+        .deck-grid.interacting .card:not(.animating-flip) {
+            opacity: 0.3;
+            transform: scale(0.95);
+        }
+
+        /* Result Overlay */
+        .result-overlay {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.8);
+            backdrop-filter: blur(5px);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s;
+        }
+
+        .result-overlay.active {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .result-card {
+            background: white;
+            color: #333;
+            padding: 40px;
+            border-radius: 12px;
+            text-align: center;
+            width: 400px;
+            max-height: 85vh;
+            overflow-y: auto;
+            transform: scale(0.8);
+            transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        .result-overlay.active .result-card {
+            transform: scale(1);
+        }
+
+        .win-rate-display {
+            font-size: 4rem;
+            font-weight: 800;
+            color: var(--felt-green);
+            margin: 10px 0;
+        }
+
+        .progress-container {
+            width: 100%;
+            height: 14px;
+            background: #ddd;
+            border-radius: 7px;
+            margin: 20px 0;
+            overflow: hidden;
+        }
+
+        .progress-bar {
+            height: 100%;
+            background: linear-gradient(90deg, var(--highlight-color), #e67e22);
+            width: 0%;
+            border-radius: 7px;
+            transition: width 1s ease-out;
+        }
+
+        /* Utilities */
+        .hidden { display: none; }
+
+        /* Responsive tweaks */
+        @media (max-width: 900px) {
+            .deck-grid { grid-template-columns: repeat(8, 1fr); }
+        }
+        @media (max-width: 600px) {
+            .deck-grid { grid-template-columns: repeat(4, 1fr); }
+            .cards-row { flex-wrap: wrap; justify-content: center; }
+        }
+    </style>
+</head>
+<body>
+
+<header>
+    <div style="width: 100%; text-align: center; margin-bottom: 12px;">
+        <h1 style="margin: 0;">PokerSim <span style="font-size: 0.5em; opacity: 0.6; vertical-align: middle;">LITE</span></h1>
+        <p style="margin: 6px 0 0; font-size: 0.85em; opacity: 0.75; font-style: italic;">
+            This tool currently supports 6-max (6-player) table equity calculations only.
+        </p>
+    </div>
+    <div class="control-panel">
+        <div>
+            <label for="player-count" style="font-size: 0.85em; margin-right: 5px;">Players:</label>
+            <select id="player-count" disabled>
+                <option value="6" selected>6-max</option>
+            </select>
+        </div>
+        <div>
+            <label for="hero-pos" style="font-size: 0.85em; margin-right: 5px;">Hero:</label>
+            <select id="hero-pos">
+                <option value="UTG">UTG</option>
+                <option value="HJ">HJ</option>
+                <option value="CO">CO</option>
+                <option value="BTN" selected>BTN</option>
+                <option value="SB">SB</option>
+                <option value="BB">BB</option>
+            </select>
+        </div>
+        <!-- Overall opponent range removed: use per-position ranges instead -->
+        <button class="secondary" id="btn-range-info" type="button">Range Info</button>
+        <button class="secondary" id="btn-reset">Reset Table</button>
+        <button class="primary" id="btn-calculate" disabled>Calculate Equity</button>
+    </div>
+</header>
+
+<div class="game-board">
+
+    <!-- 6-max Positions -->
+    <div class="deck-area" style="margin-top: 10px;">
+        <div class="slot-label" style="margin-bottom: 10px;">6-max: Who is In The Pot?</div>
+        <div id="pos-panel" style="display:flex; flex-wrap:wrap; gap:10px; align-items:center; justify-content:center;">
+            <!-- JS injects position toggles -->
+        </div>
+        <div style="text-align:center; margin-top:10px; opacity:0.85; font-size:0.9rem;">
+            Tips: uncheck positions that folded.
+        </div>
+    </div>
+    
+    <!-- Selected Cards Area -->
+    <div class="slots-container">
+        <div class="slot-group">
+            <div class="slot-label">My Hand</div>
+            <div class="cards-row" id="hole-container">
+                <!-- JS will inject slots/cards here -->
+                <div class="card-slot"></div>
+                <div class="card-slot"></div>
+            </div>
+        </div>
+
+        <div class="slot-group">
+            <div class="slot-label">Flop</div>
+            <div class="cards-row" id="flop-container">
+                <div class="card-slot"></div>
+                <div class="card-slot"></div>
+                <div class="card-slot"></div>
+            </div>
+        </div>
+
+        <div class="slot-group">
+            <div class="slot-label">Turn</div>
+            <div class="cards-row" id="turn-container">
+                <div class="card-slot"></div>
+            </div>
+        </div>
+
+        <div class="slot-group">
+            <div class="slot-label">River</div>
+            <div class="cards-row" id="river-container">
+                <div class="card-slot"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Deck Area -->
+    <div class="deck-area">
+        <div class="slot-label" style="margin-bottom: 15px;">Select Cards</div>
+        <div class="deck-grid" id="deck-grid">
+            <!-- JS Generated Cards -->
+        </div>
+    </div>
+</div>
+
+<!-- Result Modal -->
+<div class="result-overlay" id="result-overlay">
+    <div class="result-card">
+        <h2 style="margin-top:0; color:#555;">Calculated Equity</h2>
+        <div class="win-rate-display" id="result-percent">0%</div>
+        <div class="progress-container">
+            <div class="progress-bar" id="result-bar"></div>
+        </div>
+        <p style="color: #777; font-size: 0.9em;">Based on Monte Carlo Simulation</p>
+        <button class="primary" style="margin-top: 10px; width: 100%;" onclick="closeOverlay()">Close</button>
+    </div>
+</div>
+
+<!-- Range Info Modal -->
+<div class="result-overlay" id="range-overlay" style="display:none;">
+    <div class="result-card" style="max-width: 760px;">
+        <h2 style="margin-top:0; color:#555;">Opponent Range Definitions</h2>
+        <div style="color:#555; font-size: 0.95em; line-height: 1.45; text-align:left;">
+            <p style="margin-top:0;">
+                These ranges are a lightweight model implemented in <code>pokerwin/simulator.py</code> (<code>_hand_in_range</code>).
+                They are not full preflop charts—just simple rules.
+            </p>
+
+            <h3 style="margin: 14px 0 6px; color:#444;">Tight</h3>
+            <ul style="margin-top: 0; padding-left: 18px;">
+                <li>Pairs: <b>TT+</b></li>
+                <li>Offsuit or suited: <b>AK</b>, <b>AQ</b></li>
+                <li>Suited: <b>AJs+</b> (AJs/AQs/AKs), <b>KQs</b></li>
+            </ul>
+
+            <h3 style="margin: 14px 0 6px; color:#444;">Standard</h3>
+            <ul style="margin-top: 0; padding-left: 18px;">
+                <li>Pairs: <b>77+</b></li>
+                <li>Suited aces: <b>A2s+</b> (any suited Ax)</li>
+                <li>Broadways (T/J/Q/K/A): any two broadways if suited; offsuit only <b>AJo+</b> and <b>KQo</b></li>
+                <li>Suited connectors: <b>T9s+</b>; suited one-gappers: <b>J9s+</b></li>
+            </ul>
+
+            <h3 style="margin: 14px 0 6px; color:#444;">Loose</h3>
+            <ul style="margin-top: 0; padding-left: 18px;">
+                <li>Pairs: <b>any pair</b></li>
+                <li>Suited: any suited Ax, any suited connector (gap=1), any suited one-gapper (gap=2), or any suited hand with low card ≥ 5</li>
+                <li>Offsuit: <b>ATo+</b>; also two broadways with low card ≥ J (e.g. <b>KJo+</b>)</li>
+            </ul>
+
+            <h3 style="margin: 14px 0 6px; color:#444;">Random</h3>
+            <ul style="margin-top: 0; padding-left: 18px;">
+                <li>Any two cards (subject to card availability / no duplicates)</li>
+            </ul>
+
+            <p style="margin-bottom:0; opacity:0.85;">
+                Tip: If you want more realistic charts (e.g. 10%/25%/50%), we can refine these rules.
+            </p>
+        </div>
+        <button class="primary" style="margin-top: 12px; width: 100%;" onclick="closeRangeOverlay()">Close</button>
+    </div>
+</div>
+
+<script>
+    /** 
+     * Texas Hold'em Simulator Frontend Logic 
+     */
+
+    // --- Constants & Data ---
+    const SUITS = [
+        { key: 's', symbol: '♠' },
+        { key: 'h', symbol: '♥' },
+        { key: 'c', symbol: '♣' },
+        { key: 'd', symbol: '♦' }
+    ];
+    const RANKS = ['A', 'K', 'Q', 'J', 'T', '9', '8', '7', '6', '5', '4', '3', '2'];
+    
+    // State
+    let state = {
+        holeCards: [],      // Max 2
+        flopCards: [],      // Max 3
+        turnCard: null,     // Single card
+        riverCard: null,    // Single card
+        deck: [],           // Reference to all 52 cards
+        positions: {
+            heroPos: 'BTN',
+            inPool: { UTG: true, HJ: true, CO: true, BTN: true, SB: true, BB: true },
+            rangesByPos: { UTG: 'tight', HJ: 'tight', CO: 'standard', BTN: 'standard', SB: 'standard', BB: 'standard' }
+        }
+    };
+
+    // --- Initialization ---
+
+    function init() {
+        buildDeck();
+        renderSlots();
+        renderPositionsPanel();
+        setupListeners();
+    }
+
+    function renderPositionsPanel() {
+        const panel = document.getElementById('pos-panel');
+        if(!panel) return;
+        const positions = ['UTG','HJ','CO','BTN','SB','BB'];
+        const heroPosSel = document.getElementById('hero-pos');
+        const heroPos = heroPosSel ? heroPosSel.value : 'BTN';
+        panel.innerHTML = '';
+
+        positions.forEach(pos => {
+            const isHero = (pos === heroPos);
+            const wrap = document.createElement('div');
+            wrap.style.display = 'flex';
+            wrap.style.gap = '6px';
+            wrap.style.alignItems = 'center';
+            wrap.style.padding = '6px 10px';
+            wrap.style.background = 'rgba(255,255,255,0.08)';
+            wrap.style.borderRadius = '10px';
+
+            const chk = document.createElement('input');
+            chk.type = 'checkbox';
+            chk.checked = !!state.positions.inPool[pos];
+            chk.onchange = () => {
+                state.positions.inPool[pos] = chk.checked;
+            };
+
+            const label = document.createElement('span');
+            label.textContent = pos;
+            label.style.minWidth = '36px';
+            if (isHero) {
+                label.style.fontWeight = 'bold';
+                label.style.color = 'var(--highlight-color)';
+            }
+
+            const sel = document.createElement('select');
+            ['tight','standard','loose','random'].forEach(v => {
+                const opt = document.createElement('option');
+                opt.value = v;
+                opt.textContent = v;
+                sel.appendChild(opt);
+            });
+            sel.value = state.positions.rangesByPos[pos] || 'standard';
+            sel.onchange = () => {
+                state.positions.rangesByPos[pos] = sel.value;
+            };
+            
+            // Disable range selector for Hero's position
+            if (isHero) {
+                sel.disabled = true;
+                sel.style.opacity = '0.5';
+                sel.style.cursor = 'not-allowed';
+                sel.title = 'Hero\'s hand is set manually';
+            }
+
+            wrap.appendChild(chk);
+            wrap.appendChild(label);
+            wrap.appendChild(sel);
+            panel.appendChild(wrap);
+        });
+    }
+
+    function buildDeck() {
+        const grid = document.getElementById('deck-grid');
+        grid.innerHTML = '';
+        state.deck = [];
+
+        // Standard order: A-2 for each suit
+        SUITS.forEach(suit => {
+            RANKS.forEach(rank => {
+                const cardObj = { 
+                    rank, 
+                    suit: suit.key, 
+                    symbol: suit.symbol,
+                    id: `${rank}${suit.key}` 
+                };
+                state.deck.push(cardObj);
+
+                // Create DOM element
+                const cardEl = createCardElement(cardObj);
+                cardEl.dataset.id = cardObj.id;
+                cardEl.onclick = () => handleCardClick(cardObj, cardEl);
+                
+                grid.appendChild(cardEl);
+            });
+        });
+    }
+
+    // --- DOM Helpers ---
+
+    function createCardElement(cardData) {
+        const el = document.createElement('div');
+        el.className = `card suit-${cardData.suit}`;
+        
+        // Rank Top-Left
+        const rankSpan = document.createElement('div');
+        rankSpan.className = 'rank';
+        rankSpan.textContent = cardData.rank;
+        
+        // Suit Center
+        const suitSpan = document.createElement('div');
+        suitSpan.className = 'suit-main';
+        suitSpan.textContent = cardData.symbol;
+
+        // Rank Bottom-Right (Rotated)
+        const rankBotSpan = document.createElement('div');
+        rankBotSpan.className = 'rank-bot';
+        rankBotSpan.textContent = cardData.rank;
+
+        el.appendChild(rankSpan);
+        el.appendChild(suitSpan);
+        el.appendChild(rankBotSpan);
+
+        return el;
+    }
+
+    function updateButtons() {
+        const btn = document.getElementById('btn-calculate');
+        // Only enable calculation if player has 2 hole cards
+        if(state.holeCards.length === 2) {
+            btn.disabled = false;
+            btn.innerHTML = "Calculate Equity";
+        } else {
+            btn.disabled = true;
+            btn.innerHTML = `Select Hand (${state.holeCards.length}/2)`;
+        }
+    }
+
+    function renderSlots() {
+        // Render Hole Cards
+        const holeContainer = document.getElementById('hole-container');
+        holeContainer.innerHTML = '';
+        
+        for(let i=0; i<2; i++) {
+            const slot = document.createElement('div');
+            slot.className = 'card-slot';
+            if(state.holeCards[i]) {
+                // Clone the card view for the slot
+                const cardData = state.holeCards[i];
+                const cardView = createCardElement(cardData);
+                cardView.classList.add('large');
+                cardView.onclick = () => handleCardClick(cardData, null); // Click in slot to remove
+                slot.style.border = "none";
+                slot.appendChild(cardView);
+            }
+            holeContainer.appendChild(slot);
+        }
+
+        // Render Flop (3 cards)
+        const flopContainer = document.getElementById('flop-container');
+        flopContainer.innerHTML = '';
+        for(let i=0; i<3; i++) {
+            const slot = document.createElement('div');
+            slot.className = 'card-slot';
+            if(state.flopCards[i]) {
+                const cardData = state.flopCards[i];
+                const cardView = createCardElement(cardData);
+                cardView.classList.add('large');
+                cardView.onclick = () => handleCardClick(cardData, null);
+                slot.style.border = 'none';
+                slot.appendChild(cardView);
+            }
+            flopContainer.appendChild(slot);
+        }
+
+        // Render Turn (1 card)
+        const turnContainer = document.getElementById('turn-container');
+        turnContainer.innerHTML = '';
+        {
+            const slot = document.createElement('div');
+            slot.className = 'card-slot';
+            if(state.turnCard) {
+                const cardView = createCardElement(state.turnCard);
+                cardView.classList.add('large');
+                cardView.onclick = () => handleCardClick(state.turnCard, null);
+                slot.style.border = 'none';
+                slot.appendChild(cardView);
+            }
+            turnContainer.appendChild(slot);
+        }
+
+        // Render River (1 card)
+        const riverContainer = document.getElementById('river-container');
+        riverContainer.innerHTML = '';
+        {
+            const slot = document.createElement('div');
+            slot.className = 'card-slot';
+            if(state.riverCard) {
+                const cardView = createCardElement(state.riverCard);
+                cardView.classList.add('large');
+                cardView.onclick = () => handleCardClick(state.riverCard, null);
+                slot.style.border = 'none';
+                slot.appendChild(cardView);
+            }
+            riverContainer.appendChild(slot);
+        }
+    }
+
+    // --- Interaction Logic ---
+
+    function handleCardClick(cardObj, deckElement) {
+        // Check if card is already selected
+        const inHole = state.holeCards.find(c => c.id === cardObj.id);
+        const inFlop = state.flopCards.find(c => c.id === cardObj.id);
+        const isTurn = (state.turnCard && state.turnCard.id === cardObj.id);
+        const isRiver = (state.riverCard && state.riverCard.id === cardObj.id);
+
+        if (inHole || inFlop || isTurn || isRiver) {
+            // Deselect Logic
+            if (inHole) state.holeCards = state.holeCards.filter(c => c.id !== cardObj.id);
+            if (inFlop) state.flopCards = state.flopCards.filter(c => c.id !== cardObj.id);
+            if (isTurn) state.turnCard = null;
+            if (isRiver) state.riverCard = null;
+            
+            // Remove visual highlight from deck
+            const el = document.querySelector(`.deck-grid .card[data-id="${cardObj.id}"]`);
+            if(el) el.classList.remove('selected');
+
+        } else {
+            // Select Logic
+            
+            // 1. Check limits
+            if (state.holeCards.length < 2) {
+                state.holeCards.push(cardObj);
+            } else if (state.flopCards.length < 3) {
+                state.flopCards.push(cardObj);
+            } else if (!state.turnCard) {
+                state.turnCard = cardObj;
+            } else if (!state.riverCard) {
+                state.riverCard = cardObj;
+            } else {
+                // Full - visual shake feedback on existing slots maybe?
+                return; 
+            }
+
+            // 2. Animation and Highlighting
+            if(deckElement) {
+                animateSelection(deckElement);
+                deckElement.classList.add('selected');
+            }
+        }
+
+        renderSlots();
+        updateButtons();
+    }
+
+    function animateSelection(element) {
+        const grid = document.getElementById('deck-grid');
+        
+        // Add Flip Animation
+        element.classList.add('animating-flip');
+        grid.classList.add('interacting');
+
+        // Clean up after animation
+        element.addEventListener('animationend', () => {
+            element.classList.remove('animating-flip');
+            grid.classList.remove('interacting');
+        }, { once: true });
+    }
+
+    // --- Calculation & Reset ---
+
+    function setupListeners() {
+        // Range info button
+        const btnRangeInfo = document.getElementById('btn-range-info');
+        if (btnRangeInfo) {
+            btnRangeInfo.addEventListener('click', () => {
+                openRangeOverlay();
+            });
+        }
+
+        // Hero position change listener
+        const heroPosSel = document.getElementById('hero-pos');
+        if (heroPosSel) {
+            heroPosSel.addEventListener('change', () => {
+                renderPositionsPanel();
+            });
+        }
+
+        // 1. 重置按钮
+        document.getElementById('btn-reset').addEventListener('click', () => {
+            state.holeCards = [];
+            state.flopCards = [];
+            state.turnCard = null;
+            state.riverCard = null;
+            // Remove all selection classes
+            document.querySelectorAll('.card.selected').forEach(el => el.classList.remove('selected'));
+            renderSlots();
+            updateButtons();
+        });
+
+        // 2. 计算按钮 (包含 Async/Await 逻辑)
+        const btnCalculate = document.getElementById('btn-calculate');
+        btnCalculate.addEventListener('click', async () => {
+            const originalText = btnCalculate.innerText;
+
+            // 加载 UI
+            btnCalculate.disabled = true;
+            btnCalculate.innerText = "Calculating...";
+
+            try {
+                const playerCount = 6;
+                
+                // 等待后端返回结果 (players is total players including hero)
+                const equity = await calculateEquity(
+                    state.holeCards,
+                    [],
+                    playerCount
+                );
+
+                showResult(equity);
+            } catch (error) {
+                console.error(error);
+                alert("Connection Error: Make sure 'server.py' is running!");
+            } finally {
+                // 恢复按钮
+                btnCalculate.disabled = false;
+                btnCalculate.innerText = originalText;
+            }
+        });
+    }
+
+    function openRangeOverlay() {
+        const overlay = document.getElementById('range-overlay');
+        if (!overlay) return;
+        overlay.style.display = 'flex';
+        // Trigger layout reflow then add active class for transition
+        setTimeout(() => overlay.classList.add('active'), 10);
+    }
+
+    function closeRangeOverlay() {
+        const overlay = document.getElementById('range-overlay');
+        if (!overlay) return;
+        overlay.classList.remove('active');
+        setTimeout(() => overlay.style.display = 'none', 300);
+    }
+
+    // Make available for inline onclick and robustness
+    window.openRangeOverlay = openRangeOverlay;
+    window.closeRangeOverlay = closeRangeOverlay;
+
+    // Click backdrop to close (but not clicks inside the card)
+    document.addEventListener('click', (e) => {
+        const overlay = document.getElementById('range-overlay');
+        if (!overlay) return;
+        if (overlay.style.display !== 'flex') return;
+        if (e.target === overlay) {
+            closeRangeOverlay();
+        }
+    });
+
+    // 后端通信函数
+    async function calculateEquity(hole, comm, players) {
+        // 格式化数据
+        const heroStrs = hole.map(c => c.rank + c.suit);
+        const commStrs = [
+            ...state.flopCards,
+            state.turnCard,
+            state.riverCard
+        ].filter(Boolean).map(c => c.rank + c.suit);
+
+        // 发送请求
+        // Use relative path to avoid host/proxy issues when served by Flask
+        const heroPosSel = document.getElementById('hero-pos');
+        const heroPos = heroPosSel ? heroPosSel.value : 'BTN';
+
+        // Ensure hero is always in the pot
+        state.positions.inPool[heroPos] = true;
+
+        const inPool = Object.entries(state.positions.inPool)
+            .filter(([_, v]) => !!v)
+            .map(([k, _]) => k);
+
+        const response = await fetch("/calculate", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+                hero: heroStrs,
+                community: commStrs,
+                players: 6,
+                hero_pos: heroPos,
+                in_pool: inPool,
+                ranges_by_pos: state.positions.rangesByPos
+            })
+        });
+
+        if (!response.ok) {
+            throw new Error("Server responded with error");
+        }
+
+        const data = await response.json();
+        return data.equity ?? data.win_rate; // 兼容旧字段
+    }
+
+    function showResult(targetPercent) {
+        const overlay = document.getElementById('result-overlay');
+        const numDisplay = document.getElementById('result-percent');
+        const bar = document.getElementById('result-bar');
+
+        overlay.classList.add('active');
+        
+        // Reset Animation
+        bar.style.width = '0%';
+        numDisplay.textContent = '0.0%';
+
+        // Animate numbers
+        let current = 0;
+        const duration = 1500; // ms
+        const start = performance.now();
+
+        function step(timestamp) {
+            const elapsed = timestamp - start;
+            const progress = Math.min(elapsed / duration, 1);
+            
+            // Ease out quart
+            const ease = 1 - Math.pow(1 - progress, 4);
+            
+            current = ease * targetPercent;
+            
+            // 防止出现 NaN
+            if(isNaN(current)) current = 0;
+
+            numDisplay.textContent = current.toFixed(1) + '%';
+            bar.style.width = current + '%';
+
+            if (progress < 1) {
+                window.requestAnimationFrame(step);
+            }
+        }
+
+        window.requestAnimationFrame(step);
+    }
+
+    function closeOverlay() {
+        document.getElementById('result-overlay').classList.remove('active');
+    }
+
+    // Boot
+    init();
+
+</script>
+</body>
+</html>
